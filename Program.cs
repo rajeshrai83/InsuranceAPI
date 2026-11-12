@@ -18,7 +18,7 @@ var summaries = new[]
 {
     "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
 };
-app.MapGet("/", () => "I am learning Docker with the help of ChatGPT!");
+app.MapGet("/", () => "I am learning Docker with the help of ChatGPT! I have setup the devops pipeline");
 app.MapGet("/weatherforecast", () =>
 {
     var forecast =  Enumerable.Range(1, 5).Select(index =>
