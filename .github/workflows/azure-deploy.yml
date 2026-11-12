@@ -1,0 +1,86 @@
+
+name: Insurance API - Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  ACR_NAME: rajeshraireistery
+  ACR_LOGIN_SERVER: rajeshraireistery.azurecr.io
+  IMAGE_NAME: insuranceapi
+  RESOURCE_GROUP: docker
+  WEBAPP_NAME: insurance-api-app-2027
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # 1. Checkout source code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Login to Azure using OIDC
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # 3. Setup Docker Buildx
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 4. Login to ACR using a short-lived token
+      - name: Login to Azure Container Registry
+        shell: bash
+        run: |
+          ACR_TOKEN=$(az acr login \
+            --name "$ACR_NAME" \
+            --expose-token \
+            --query accessToken \
+            --output tsv)
+
+          echo "$ACR_TOKEN" | docker login \
+            "$ACR_LOGIN_SERVER" \
+            --username 00000000-0000-0000-0000-000000000000 \
+            --password-stdin
+
+      # 5. Build and push Docker image
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            rajeshraireistery.azurecr.io/insuranceapi:${{ github.sha }}
+            rajeshraireistery.azurecr.io/insuranceapi:latest
+
+      # 6. Update App Service container image
+      - name: Deploy to Azure App Service
+        shell: bash
+        run: |
+          IMAGE="$ACR_LOGIN_SERVER/$IMAGE_NAME:$GITHUB_SHA"
+
+          az webapp config container set \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$WEBAPP_NAME" \
+            --container-image-name "$IMAGE" \
+            --container-registry-url "https://$ACR_LOGIN_SERVER"
+
+      # 7. Restart App Service
+      - name: Restart App Service
+        run: |
+          az webapp restart \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$WEBAPP_NAME"
